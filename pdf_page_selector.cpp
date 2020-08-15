@@ -24,39 +24,21 @@ pdf_page_selector::pdf_page_selector(QPdfDocument *pdf_doc, size_t &start, size_
     });
 
     connect(ui->confirm_bt, &QPushButton::clicked, this, [&](){
-        this->close();
+        if(!is_page_index_legal(*start_page_index)
+             || !is_page_index_legal(*end_page_index)
+                || *start_page_index > *end_page_index) {
+            QMessageBox::warning(NULL, "Warning", "Invalid page index.", QMessageBox::Ok);
+        } else {
+            this->close();
+        }
     });
 
     connect(ui->start_page_edit, &QLineEdit::textChanged, this, [&](const QString &s){
-        size_t page_index = strtouq(s.toLocal8Bit(), nullptr, 0);
-        bool page_range_ok = page_index <= *(this->end_page_index);
-        if(!is_page_index_legal(s) || !page_range_ok) {
-            if(!s.isEmpty()&&!ui->end_page_edit->text().isEmpty()) {
-                this->highlight_edit_err(ui->start_page_edit);
-            }
-        } else {
-            this->clean_edit_err_highlight(ui->start_page_edit);
-            this->view_render(ui->start_page_view, page_index);
-        }
-        if(page_range_ok) {
-            this->clean_edit_err_highlight(ui->end_page_edit);
-        }
+        dynamic_page_index_check(s, end_page_index, ui->start_page_edit, ui->end_page_edit, ui->start_page_view);
     });
 
     connect(ui->end_page_edit, &QLineEdit::textChanged, this, [&](const QString &s){
-        size_t page_index = strtouq(s.toLocal8Bit(), nullptr, 0);
-        bool page_range_ok = page_index >= *(this->start_page_index);
-        if(!is_page_index_legal(s) || !page_range_ok) {
-            if(!ui->start_page_edit->text().isEmpty()&&!s.isEmpty()) {
-                this->highlight_edit_err(ui->end_page_edit);
-            }
-        } else {
-            this->clean_edit_err_highlight(ui->end_page_edit);
-            this->view_render(ui->end_page_view, page_index);
-        }
-        if(page_range_ok) {
-            this->clean_edit_err_highlight(ui->start_page_edit);
-        }
+        dynamic_page_index_check(s, start_page_index, ui->end_page_edit, ui->start_page_edit, ui->end_page_view);
     });
 
     connect(ui->start_page_edit, &QLineEdit::editingFinished, this, [&](){
@@ -70,8 +52,28 @@ pdf_page_selector::pdf_page_selector(QPdfDocument *pdf_doc, size_t &start, size_
     });
 }
 
+void pdf_page_selector::dynamic_page_index_check(const QString &s,
+         size_t *another_page_index, QLineEdit *editor, QLineEdit *another_editor, QLabel *view) {
+    size_t page_index = strtouq(s.toLocal8Bit(), nullptr, 0);
+    bool page_range_ok =
+       (another_page_index==start_page_index)?(page_index>=*another_page_index):(page_index<=*another_page_index);
+    if(!is_page_index_legal(s)) {
+        this->highlight_edit_err(editor);
+    } else {
+        this->clean_edit_err_highlight(editor);
+        this->view_render(view, page_index);
+    }
+    if(page_range_ok) {
+        this->clean_edit_err_highlight(another_editor);
+    } else {
+        this->highlight_edit_err(editor);
+    }
+}
+
 void pdf_page_selector::highlight_edit_err(QLineEdit *editor) {
-    editor->setStyleSheet("border: 1px solid red;");
+    if(!ui->start_page_edit->text().isEmpty()&&!ui->end_page_edit->text().isEmpty()) {
+        editor->setStyleSheet("border: 1px solid red;");
+    }
 }
 
 void pdf_page_selector::clean_edit_err_highlight(QLineEdit *editor) {
