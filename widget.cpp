@@ -22,7 +22,7 @@ Widget::Widget(QWidget *parent)
           fileDialog->setWindowTitle(tr("打开文件"));
           fileDialog->setDirectory(".");
           QStringList name_filter;
-          name_filter << "Text files (*.txt)" << "Pdf files (*.pdf)";
+          name_filter << "Pdf files (*.pdf)" << "Text files (*.txt)";
           fileDialog->setNameFilters(name_filter);
           fileDialog->setViewMode(QFileDialog::Detail);
           QString file_name;

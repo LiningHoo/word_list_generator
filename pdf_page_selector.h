@@ -3,6 +3,9 @@
 
 #include <QDialog>
 #include <QtPdf/QtPdf>
+#include <QLabel>
+#include <QLineEdit>
+#include <cctype>
 
 namespace Ui {
 class pdf_page_selector;
@@ -18,6 +21,11 @@ public:
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
+    void view_render(QLabel *view, size_t page);
+    void highlight_edit_err(QLineEdit *editor);
+    void clean_edit_err_highlight(QLineEdit *editor);
+    bool is_page_index_legal(const QString &page_index_str);
+    bool is_page_index_legal(const size_t &page_index);
 
 private:
     Ui::pdf_page_selector *ui;
