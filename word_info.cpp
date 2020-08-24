@@ -25,28 +25,27 @@ word_info::word_info(QString path, QProgressBar* bar, QWidget *parent) :
     });
 
     connect(ui->yes_bt, &QPushButton::clicked, this, [&](){
-        if(std::distance(it, this->word_set.end()) >= 2){
-            output_file << *it << "\t" << translation(*it) << std::endl;
-            ++this->it;
-            load();
+        if(std::distance(iter, this->word_set.end()) >= 2){
+            output_file << *iter << "\t" << translation(*iter) << std::endl;
+            load_content_to_widget(++this->iter);
         }
         emit one_word_processed();
     });
 
     connect(ui->no_bt, &QPushButton::clicked, this, [&](){
-        const std::string &word = *it;
-        if(std::distance(it, this->word_set.end()) >= 2){
+        const std::string &word = *iter;
+        if(std::distance(iter, this->word_set.end()) >= 2){
             if(!is_already_know(word)) {
                 std::string sql =
                     std::string("insert into words (word) values ('") + word + "');";
                 already_know_db.execute(sql.c_str());
-                already_know_db.execute("commit;");
+                already_know_db.execute("commiter;");
             }
-            ++this->it;
-            load();
+            load_content_to_widget(++this->iter);
         }
         emit one_word_processed();
     });
+
 }
 
 word_info::~word_info()
@@ -54,34 +53,36 @@ word_info::~word_info()
     delete ui;
 }
 
-void word_info::load() {
-    ui->label->setText(QString::fromStdString(*this->it));
-    ui->textBrowser->setText(QString::fromStdString(translation(*this->it)));
+void word_info::load_content_to_widget(const std::unordered_set<std::string>::iterator &iter) {
+    ui->label->setText(QString::fromStdString(*iter));
+    ui->textBrowser->setText(QString::fromStdString(translation(*iter)));
 }
 
-void word_info::start() {
-    word_set.clear();
+void word_info::main_task_start() {
+    this->progress = 0;
+    std::string ext = get_file_ext(file_path);
+    if(ext == ".txt") {
+        txt_task(file_path);
+    } else if(ext == ".pdf") {
+        pdf_task(file_path);
+    } else {
+        ;
+    }
+}
 
-    db = sqlite3pp::database("stardict.db");
-    already_know_db = sqlite3pp::database("already_know.db");
-
-    std::string str = file2str(file_path);
+void word_info::append_words_to_set(const std::string &str) {
+    if(str.empty()) return;
     std::istringstream iss(str);
-
     while(iss >> word) {
-        std::transform(word.begin(), word.end(), word.begin(), tolower);
-        word = trim(word);
+        trim(word);
         if(is_english_word(word) && word_set.find(word)==word_set.end()) {
+            std::transform(word.begin(), word.end(), word.begin(), tolower);
             std::string chinese = translation(word);
             if(chinese != "" && !is_already_know(word)) {
                 word_set.insert(word);
             }
         }
     }
-
-    this->setVisible(true);
-    this->it = this->word_set.begin();
-    load();
 }
 
 bool word_info::is_letter(const char &c) {
@@ -118,11 +119,13 @@ std::string word_info::translation(const std::string &word) {
     return chinese;
 }
 
-std::string word_info::trim(const std::string &word) {
-    int left = 0, right = word.length();
-    while(left < (int)word.length() && !is_letter(word[left])) ++left;
-    while(--right >=0 && !is_letter(word[right]));
-    return left <= right ? word.substr(left, right-left+1) : word;
+void word_info::trim(std::string &word) {
+    for(auto it=word.begin(); it!=word.end(); ++it) {
+        const char &c = *it;
+        if(c != '-' && c != '\'' && !is_letter(*it)) {
+            word.erase(it--);
+        }
+    }
 }
 
 std::string word_info::get_file_ext(const std::string &file_path) {
@@ -130,47 +133,40 @@ std::string word_info::get_file_ext(const std::string &file_path) {
     return file_path.substr(last_dot_pos, file_path.length()-last_dot_pos);
 }
 
-std::string word_info::file2str(const std::string &file_path) {
-    std::string ext = get_file_ext(file_path);
-    if(ext == ".txt") {
-        return txt2str(file_path);
-    } else if(ext == ".pdf") {
-        return pdf2str(file_path);
-    } else {
-        return "";
-    }
-}
-
-std::string word_info::txt2str(const std::string &file_path) {
+void word_info::txt_task(const std::string &file_path) {
     std::ifstream file(file_path);
-    std::string ret, temp;
+    std::string temp, str;
+
     while(std::getline(file, temp)) {
-        ret.append(temp).append("\n");
+        str.append(temp);
     }
-    return ret;
+    append_words_to_set(str);
+    this->setVisible(true);
+    this->iter = word_set.begin();
+    load_content_to_widget(iter);
 }
 
-std::string word_info::pdf2str(const std::string &file_path) {
+
+void word_info::pdf_task(const std::string &file_path) {
     this->setVisible(false);
 
-    std::string ret = "";
+    std::string str = "";
     QPdfDocument *pdf_doc = new QPdfDocument();
 
     pdf_doc->load(QString::fromStdString(file_path));
 
-    size_t start_page_index, end_page_index;
+    size_t start_page_index = 1, end_page_index = pdf_doc->pageCount();
 
     pdf_page_selector *selector = new pdf_page_selector(pdf_doc, start_page_index, end_page_index);
     selector->exec();
 
-    for(size_t page=start_page_index-1; page!=end_page_index; ++page) {
-        ret.append(pdf_doc->getAllText(page).text().toLocal8Bit().data()).append("\n");
+
+    if(start_page_index!=0 && end_page_index!=0) {
+        AppendWordSetThread *thread = new AppendWordSetThread(this, &word_set, pdf_doc, start_page_index, end_page_index);
+        thread->start();
+        while(thread->isRunning());
+        this->iter = word_set.begin();
+        this->load_content_to_widget(iter);
+        this->setVisible(true);
     }
-
-//    qDebug() << start_page_index << " " << end_page_index << "\n";
-//    QPdfSelection selected_text = pdf_doc->getAllText(35);
-
-//    qDebug() << selected_text.text().toLocal8Bit().data();
-//    this->setVisible(true);
-    return ret;
 }

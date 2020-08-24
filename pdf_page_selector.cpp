@@ -20,6 +20,8 @@ pdf_page_selector::pdf_page_selector(QPdfDocument *pdf_doc, size_t &start, size_
     this->view_render(ui->end_page_view, this->pdf_doc->pageCount());
 
     connect(ui->cancel_bt, &QPushButton::clicked, this, [&](){
+        *(this->start_page_index) = 0;
+        *(this->end_page_index) = 0;
         this->close();
     });
 
@@ -43,12 +45,10 @@ pdf_page_selector::pdf_page_selector(QPdfDocument *pdf_doc, size_t &start, size_
 
     connect(ui->start_page_edit, &QLineEdit::editingFinished, this, [&](){
         *(this->start_page_index) = strtouq(ui->start_page_edit->text().toLocal8Bit(), nullptr, 0);
-
     });
 
     connect(ui->end_page_edit, &QLineEdit::editingFinished, this, [&](){
         *(this->end_page_index) = strtouq(ui->end_page_edit->text().toLocal8Bit(), nullptr, 0);
-
     });
 }
 

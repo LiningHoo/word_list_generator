@@ -35,7 +35,7 @@ Widget::Widget(QWidget *parent)
           if(!file_name.isEmpty()) {
               word_info *info_widget =
                       new word_info(file_name, ui->progress_bar);
-              info_widget->start();
+              info_widget->main_task_start();
           }
     });
 }
