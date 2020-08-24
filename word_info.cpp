@@ -77,8 +77,8 @@ void word_info::append_words_to_set(const std::string &str) {
         trim(word);
         if(is_english_word(word) && word_set.find(word)==word_set.end()) {
             std::transform(word.begin(), word.end(), word.begin(), tolower);
-            std::string chinese = translation(word);
-            if(chinese != "" && !is_already_know(word)) {
+            std::string definition = translation(word);
+            if(definition != "" && !is_already_know(word)) {
                 word_set.insert(word);
             }
         }
@@ -106,25 +106,25 @@ bool word_info::is_already_know(const std::string &word) {
 
 std::string word_info::translation(const std::string &word) {
     QString sql =
-        QString("select translation from stardict where word='") + QString::fromStdString(word)+"'";
+        QString("select definition from stardict where word='") + QString::fromStdString(word)+"'";
     sqlite3pp::query qry(db, sql.toLocal8Bit());
-    std::string chinese;
+    std::string definition;
     for(auto val: qry) {
-        val.getter() >> chinese;
+        val.getter() >> definition;
     }
     size_t pos = 0;
-    while((pos=chinese.find('\n'))!=std::string::npos) {
-        chinese.replace(pos, 1, " ");
+    while((pos=definition.find('\n'))!=std::string::npos) {
+        definition.replace(pos, 1, " ");
     }
-    return chinese;
+    return definition;
 }
 
 void word_info::trim(std::string &word) {
-    for(auto it=word.begin(); it!=word.end(); ++it) {
-        const char &c = *it;
-        if(c != '-' && c != '\'' && !is_letter(*it)) {
-            word.erase(it--);
-        }
+    int left = 0, right = word.length() - 1;
+    while(left < (int)word.length() && !is_letter(word[left])) ++left;
+    while(right >=0 && !is_letter(word[right])) --right;
+    if(left <= right) {
+        word = word.substr(left, right-left+1);
     }
 }
 
